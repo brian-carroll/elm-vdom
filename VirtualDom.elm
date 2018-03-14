@@ -2,6 +2,7 @@ module VirtualDom exposing (..)
 
 import Json.Decode as JD
 import Json.Encode as JE
+import TraverseDom exposing (DomRef, parentNode, childNodes)
 
 
 type Vnode msg
@@ -14,107 +15,162 @@ type Vnode msg
 
 
 type Property msg
-    = Property
-        { key : String
-        , value : JD.Value
-        }
+    = Prop String JD.Value
 
 
 type Patch msg
-    = Append DomRef (List (Vnode msg))
+    = Append DomRef (Vnode msg)
     | Remove DomRef
-    | SetProps DomRef (List (Property msg))
+    | SetProp DomRef (Property msg)
 
 
-type alias DomRef =
-    JD.Value
+encodePatch : Patch msg -> JD.Value
+encodePatch patch =
+    case patch of
+        Append domRef vnode ->
+            JE.object
+                [ ( "type", JE.string "append" )
+                , ( "dom", domRef )
+                , ( "vnode", encodeVnode vnode )
+                ]
+
+        Remove domRef ->
+            JE.object
+                [ ( "type", JE.string "remove" )
+                , ( "dom", domRef )
+                ]
+
+        SetProp domRef (Prop key value) ->
+            JE.object
+                [ ( "type", JE.string "append" )
+                , ( "dom", domRef )
+                , ( "key", JE.string key )
+                , ( "value", value )
+                ]
 
 
-{-| Decode JUST ENOUGH of the DOM node to traverse it
-Only used to get references
-All info about properties comes from old VNode
--}
-type alias DomNode =
-    { parentNode : DomRef
-    , childNodes : List DomRef
-    , firstChild : Maybe DomRef
-    , nextSibling : Maybe DomRef
-    }
-
-
-decodeDomNode : JD.Decoder DomNode
-decodeDomNode =
-    JD.map4 DomNode
-        (JD.field "parentNode" JD.value)
-        (JD.field "childNodes" (JD.list JD.value))
-        (JD.field "firstChild" (JD.nullable JD.value))
-        (JD.field "nextSibling" (JD.nullable JD.value))
-
-
-diff : Vnode msg -> Vnode msg -> JD.Decoder (List (Patch msg))
-diff old new =
-    diffHelp old new (JD.succeed [])
-
-
-diffHelp : Vnode msg -> Vnode msg -> JD.Decoder (List (Patch msg)) -> JD.Decoder (List (Patch msg))
-diffHelp old new patches =
-    case old of
-        TextNode s ->
-            {- Check if new
-               is a text node (tagName)
-               and has the same value
-            -}
-            JD.list (JD.map Remove JD.value)
+encodeVnode : Vnode msg -> JD.Value
+encodeVnode vnode =
+    case vnode of
+        TextNode str ->
+            JE.object
+                [ ( "tagName", JE.string "TEXT" )
+                , ( "text", JE.string str )
+                ]
 
         Element { tagName, props, children } ->
-            JD.list (JD.map Remove JD.value)
+            JE.object
+                [ ( "tagName", JE.string tagName )
+                , ( "props", encodeProps props )
+                , ( "children", JE.list (List.map encodeVnode children) )
+                ]
 
 
-decodeTextNodePatch : Vnode msg -> Vnode msg -> JD.Decoder (Patch msg)
-decodeTextNodePatch old new =
-    case old of
-        Element _ ->
-            JD.succeed (Remove JE.null)
+encodeProps : List (Property msg) -> JD.Value
+encodeProps props =
+    JE.object <|
+        List.map
+            (\(Prop key value) -> ( key, value ))
+            props
 
-        option2 ->
-            JD.succeed (Remove JE.null)
+
+diff : DomRef -> Vnode msg -> Vnode msg -> List (Patch msg)
+diff dom old new =
+    diffHelp dom old new []
+        |> List.reverse
+
+
+diffHelp : DomRef -> Vnode msg -> Vnode msg -> List (Patch msg) -> List (Patch msg)
+diffHelp dom old new revPatches =
+    case ( old, new ) of
+        ( TextNode oldStr, TextNode newStr ) ->
+            if oldStr == newStr then
+                revPatches
+            else
+                replace dom new revPatches
+
+        ( Element oldRec, Element newRec ) ->
+            if oldRec.tagName /= newRec.tagName then
+                replace dom new revPatches
+            else
+                let
+                    propPatches =
+                        diffProps dom oldRec.props newRec.props revPatches
+                in
+                    diffChildren dom oldRec.children newRec.children propPatches
+
+        _ ->
+            replace dom new revPatches
+
+
+diffChildren : DomRef -> List (Vnode msg) -> List (Vnode msg) -> List (Patch msg) -> List (Patch msg)
+diffChildren parentDom oldKids newKids revPatches =
+    -- TODO
+    []
+
+
+replace : DomRef -> Vnode msg -> List (Patch msg) -> List (Patch msg)
+replace dom new revPatches =
+    (Append (parentNode dom) new)
+        :: (Remove dom)
+        :: revPatches
+
+
+diffProps : DomRef -> List (Property msg) -> List (Property msg) -> List (Patch msg) -> List (Patch msg)
+diffProps dom oldProps newProps revPatches =
+    case ( oldProps, newProps ) of
+        ( [], [] ) ->
+            revPatches
+
+        ( [], new :: newRest ) ->
+            diffProps dom [] newRest <|
+                (SetProp dom new)
+                    :: revPatches
+
+        ( (Prop key value) :: oldRest, [] ) ->
+            diffProps dom oldRest [] <|
+                (SetProp dom (Prop key JE.null))
+                    :: revPatches
+
+        ( _, ((Prop newKey newVal) as newProp) :: newRest ) ->
+            let
+                ( mOldVal, oldRest ) =
+                    extractFirstMatchingProp newKey oldProps
+            in
+                if mOldVal == Just newVal then
+                    diffProps dom oldRest newRest revPatches
+                else
+                    diffProps dom oldRest newRest <|
+                        (SetProp dom newProp)
+                            :: revPatches
+
+
+{-| Remove the first matching Property from the list, and get its value
+-}
+extractFirstMatchingProp : String -> List (Property msg) -> ( Maybe JD.Value, List (Property msg) )
+extractFirstMatchingProp key pairs =
+    case pairs of
+        [] ->
+            ( Nothing, [] )
+
+        (Prop k v) :: rest ->
+            if k == key then
+                ( Just v, rest )
+            else
+                let
+                    ( found, leftovers ) =
+                        extractFirstMatchingProp key rest
+                in
+                    ( found, (Prop k v) :: leftovers )
 
 
 
 {-
-   How to keep track of DOM node references?
-    Do we need to pass them back from JS?
-    Or can we use a patch tree with a NoOp constructor, and traverse in JS?
-        Doesn't sound very fast.
-
-    We need root node as JS value anyway
-    Can structure the vdom diff as a nested Json Decoder
-
-
-    diff : Node msg -> JD.Decoder (List (Patch msg))
-    diff vdom =
-        ...
-
-    patchesDecoder = diff vdom
-    patches = JD.decodeValue patchesDecoder dom
-
-
-    going to need lots of JD.andThen
-    append to a set of patches
-    recurse down a tree
-
-    Completely flatten patches to a List?
-        Hard to do with a whole new sub-tree? One layer down, we have no ref for parent
-        => at least Create has to be recursive on JS side
-
-    May need to dynamically decode fields!
-        field myFieldName JD.value
-
-    Event handlers:
-        Can't pass function through Port, need to create handler on JS side
-        Function on JS side needs to tag the event and send it through with the payload
-        Then decode that event on the other side
-        Basically building a synthetic event system
-        Taggers couldn't be curried functions, just strings
+   Event handlers:
+       Can't pass function through Port, need to create handler on JS side
+       Function on JS side needs to tag the event and send it through with the payload
+       Then decode that event on the other side
+       Basically building a synthetic event system
+       Taggers couldn't be curried functions, just strings
 
 -}
