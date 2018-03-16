@@ -1,10 +1,10 @@
 module ViewVdom exposing (root)
 
-import VirtualDom exposing (..)
+import VDom exposing (..)
 import Types exposing (..)
 
 
-node : String -> List (Property msg) -> List (Node msg) -> Node msg
+node : String -> List (Property msg) -> List (Vnode msg) -> Vnode msg
 node tagName props children =
     Element
         { tagName = tagName
@@ -13,32 +13,32 @@ node tagName props children =
         }
 
 
-div : List (Property msg) -> List (Node msg) -> Node msg
+div : List (Property msg) -> List (Vnode msg) -> Vnode msg
 div =
     node "div"
 
 
-h1 : List (Property msg) -> List (Node msg) -> Node msg
+h1 : List (Property msg) -> List (Vnode msg) -> Vnode msg
 h1 =
     node "h1"
 
 
-p : List (Property msg) -> List (Node msg) -> Node msg
+p : List (Property msg) -> List (Vnode msg) -> Vnode msg
 p =
     node "p"
 
 
-button : List (Property msg) -> List (Node msg) -> Node msg
+button : List (Property msg) -> List (Vnode msg) -> Vnode msg
 button =
     node "button"
 
 
-text : String -> Node msg
+text : String -> Vnode msg
 text =
-    Text
+    TextNode
 
 
-root : Model -> Node Msg
+root : Model -> Vnode Msg
 root model =
     div []
         [ h1 []

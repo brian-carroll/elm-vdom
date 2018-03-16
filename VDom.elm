@@ -1,8 +1,13 @@
-module VirtualDom exposing (..)
+module VDom
+    exposing
+        ( Vnode
+        , DomRef
+        , diff
+        , encodePatches
+        )
 
 import Json.Decode as JD
 import Json.Encode as JE
-import TraverseDom exposing (DomRef, parentNode, childNodes)
 
 
 type Vnode msg
@@ -19,30 +24,53 @@ type Property msg
 
 
 type Patch msg
-    = Append DomRef (Vnode msg)
+    = AppendChild DomRef (Vnode msg)
+    | InsertBefore DomRef (Vnode msg)
     | Remove DomRef
     | SetProp DomRef (Property msg)
 
 
+type alias DomRef =
+    JD.Value
+
+
+childNodes : DomRef -> List DomRef
+childNodes domRef =
+    JD.decodeValue
+        (JD.field "childNodes" (JD.list JD.value))
+        domRef
+        |> Result.withDefault []
+
+
+encodePatches : List (Patch msg) -> JD.Value
+encodePatches patches =
+    JE.list <|
+        List.map encodePatch patches
+
+
 encodePatch : Patch msg -> JD.Value
 encodePatch patch =
-    case patch of
-        Append domRef vnode ->
-            JE.object
-                [ ( "type", JE.string "append" )
+    JE.object <|
+        case patch of
+            AppendChild domRef vnode ->
+                [ ( "type", JE.string "AppendChild" )
                 , ( "dom", domRef )
                 , ( "vnode", encodeVnode vnode )
                 ]
 
-        Remove domRef ->
-            JE.object
-                [ ( "type", JE.string "remove" )
+            InsertBefore domRef vnode ->
+                [ ( "type", JE.string "AppendChild" )
+                , ( "dom", domRef )
+                , ( "vnode", encodeVnode vnode )
+                ]
+
+            Remove domRef ->
+                [ ( "type", JE.string "Remove" )
                 , ( "dom", domRef )
                 ]
 
-        SetProp domRef (Prop key value) ->
-            JE.object
-                [ ( "type", JE.string "append" )
+            SetProp domRef (Prop key value) ->
+                [ ( "type", JE.string "SetProp" )
                 , ( "dom", domRef )
                 , ( "key", JE.string key )
                 , ( "value", value )
@@ -75,13 +103,18 @@ encodeProps props =
 
 
 diff : DomRef -> Vnode msg -> Vnode msg -> List (Patch msg)
-diff dom old new =
-    diffHelp dom old new []
-        |> List.reverse
+diff containerDom old new =
+    List.reverse <|
+        diffChildren
+            containerDom
+            (childNodes containerDom)
+            [ old ]
+            [ new ]
+            []
 
 
-diffHelp : DomRef -> Vnode msg -> Vnode msg -> List (Patch msg) -> List (Patch msg)
-diffHelp dom old new revPatches =
+diffNode : DomRef -> Vnode msg -> Vnode msg -> List (Patch msg) -> List (Patch msg)
+diffNode dom old new revPatches =
     case ( old, new ) of
         ( TextNode oldStr, TextNode newStr ) ->
             if oldStr == newStr then
@@ -94,26 +127,56 @@ diffHelp dom old new revPatches =
                 replace dom new revPatches
             else
                 let
-                    propPatches =
+                    revPatchesWithProps =
                         diffProps dom oldRec.props newRec.props revPatches
                 in
-                    diffChildren dom oldRec.children newRec.children propPatches
+                    diffChildren
+                        dom
+                        (childNodes dom)
+                        oldRec.children
+                        newRec.children
+                        revPatchesWithProps
 
         _ ->
             replace dom new revPatches
 
 
-diffChildren : DomRef -> List (Vnode msg) -> List (Vnode msg) -> List (Patch msg) -> List (Patch msg)
-diffChildren parentDom oldKids newKids revPatches =
-    -- TODO
-    []
-
-
 replace : DomRef -> Vnode msg -> List (Patch msg) -> List (Patch msg)
 replace dom new revPatches =
-    (Append (parentNode dom) new)
-        :: (Remove dom)
+    (Remove dom)
+        :: (InsertBefore dom new)
         :: revPatches
+
+
+diffChildren : DomRef -> List DomRef -> List (Vnode msg) -> List (Vnode msg) -> List (Patch msg) -> List (Patch msg)
+diffChildren parentDom domKids oldKids newKids revPatches =
+    case ( domKids, oldKids, newKids ) of
+        ( [], [], [] ) ->
+            revPatches
+
+        ( [], [], _ ) ->
+            List.foldl
+                (\newKid acc -> (AppendChild parentDom newKid) :: acc)
+                revPatches
+                newKids
+
+        ( _, _, [] ) ->
+            List.foldl
+                (\domKid acc -> (Remove domKid) :: acc)
+                revPatches
+                domKids
+
+        ( dom :: domRest, old :: oldRest, new :: newRest ) ->
+            diffChildren parentDom domRest oldRest newRest <|
+                (diffNode dom old new revPatches)
+
+        _ ->
+            Debug.crash <|
+                "Virtual DOM doesn't match real DOM:\n"
+                    ++ "real:\n"
+                    ++ toString domKids
+                    ++ "virtual:\n"
+                    ++ toString oldKids
 
 
 diffProps : DomRef -> List (Property msg) -> List (Property msg) -> List (Patch msg) -> List (Patch msg)

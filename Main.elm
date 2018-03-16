@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 {-
    Test Virtual Dom
@@ -12,11 +12,17 @@ module Main exposing (..)
 import Html
 import Types exposing (..)
 import ViewStdLib
+import ViewVdom
+import VDom exposing (Vnode(..), DomRef)
+import Json.Decode as JD
 
 
-main : Program Never Model Msg
+port vdomOutput : JD.Value -> Cmd msg
+
+
+main : Program DomRef Model Msg
 main =
-    Html.program
+    Html.programWithFlags
         { init = init
         , update = update
         , subscriptions = (\_ -> Sub.none)
@@ -24,15 +30,29 @@ main =
         }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( 0, Cmd.none )
+init : DomRef -> ( Model, Cmd Msg )
+init containerRoot =
+    ( { count = 0
+      , vdom = TextNode ""
+      , containerRoot = containerRoot
+      }
+    , Cmd.none
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
     case message of
         Increment ->
-            ( model + 1
-            , Cmd.none
-            )
+            let
+                newModel =
+                    { model
+                        | count = model.count + 1
+                    }
+            in
+                ( newModel
+                , ViewVdom.root newModel
+                    |> Vdom.diff model.containerRoot model.vdom
+                    |> Vdom.encodePatches
+                    |> vdomOutput
+                )

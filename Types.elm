@@ -1,9 +1,14 @@
 module Types exposing (..)
 
+import VDom exposing (Vnode, DomRef)
+
 
 type Msg
     = Increment
 
 
 type alias Model =
-    Int
+    { count : Int
+    , vdom : Vnode Msg
+    , containerRoot : DomRef
+    }
