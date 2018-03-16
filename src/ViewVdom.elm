@@ -44,5 +44,5 @@ root model =
         [ h1 []
             [ text "Brian's vdom" ]
         , p []
-            [ text ("Count: " ++ toString model) ]
+            [ text ("Count: " ++ toString model.count) ]
         ]

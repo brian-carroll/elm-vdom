@@ -11,7 +11,7 @@ root model =
         [ h1 []
             [ text "Elm-Lang HTML" ]
         , p []
-            [ text ("Count: " ++ toString model) ]
+            [ text ("Count: " ++ toString model.count) ]
         , button
             [ onClick Increment ]
             [ text "+1" ]
