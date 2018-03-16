@@ -1,6 +1,7 @@
 module VDom
     exposing
-        ( Vnode
+        ( Vnode(..)
+        , Property
         , DomRef
         , diff
         , encodePatches
@@ -52,14 +53,14 @@ encodePatch : Patch msg -> JD.Value
 encodePatch patch =
     JE.object <|
         case patch of
-            AppendChild domRef vnode ->
+            AppendChild parentDom vnode ->
                 [ ( "type", JE.string "AppendChild" )
-                , ( "dom", domRef )
+                , ( "parentDom", parentDom )
                 , ( "vnode", encodeVnode vnode )
                 ]
 
             InsertBefore domRef vnode ->
-                [ ( "type", JE.string "AppendChild" )
+                [ ( "type", JE.string "InsertBefore" )
                 , ( "dom", domRef )
                 , ( "vnode", encodeVnode vnode )
                 ]

@@ -52,7 +52,7 @@ update message model =
             in
                 ( newModel
                 , ViewVdom.root newModel
-                    |> Vdom.diff model.containerRoot model.vdom
-                    |> Vdom.encodePatches
+                    |> VDom.diff model.containerRoot model.vdom
+                    |> VDom.encodePatches
                     |> vdomOutput
                 )

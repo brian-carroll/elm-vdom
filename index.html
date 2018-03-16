@@ -21,19 +21,7 @@
     <div id="brian-vdom"></div>
 
     <script src="elm.js" type="text/javascript"></script>
-
-    <script type="text/javascript">
-        var elmLangNode = document.getElementById('elm-lang-vdom');
-        Elm.Main.embed(elmLangNode);
-
-        var root = document.getElementById('brian-vdom');
-        var h1 = document.createElement('h1');
-        var textNode = document.createTextNode("Brian's vdom");
-        h1.appendChild(textNode);
-        root.appendChild(h1);
-
-
-    </script>
+    <script src="src/app.js" type="text/javascript"></script>
 </body>
 
 </html>
