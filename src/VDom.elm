@@ -1,7 +1,7 @@
 module VDom
     exposing
         ( Vnode(..)
-        , Property
+        , Property(..)
         , DomRef
         , diff
         , encodePatches

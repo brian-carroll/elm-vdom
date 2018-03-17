@@ -6,6 +6,7 @@ elmApp.ports.vdomOutput.subscribe(applyPatches);
 
 function applyPatches(patches) {
   patches.forEach(patch => {
+    console.log(patch);
     switch (patch.type) {
       case 'AppendChild': {
         appendVnode(patch.parentDom, patch.vnode);
