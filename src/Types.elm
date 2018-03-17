@@ -9,6 +9,6 @@ type Msg
 
 type alias Model =
     { count : Int
-    , vdom : Vnode Msg
+    , vdomList : List (Vnode Msg)
     , containerRoot : DomRef
     }

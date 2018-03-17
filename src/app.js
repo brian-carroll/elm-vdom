@@ -12,8 +12,10 @@ function applyPatches(patches) {
         break;
       }
       case 'InsertBefore': {
-        const danglingElement = createElemFromVnode(patch.vnode);
-        patch.dom.insertBefore(danglingElement);
+        const newNode = createNode(patch.vnode);
+        const referenceNode = patch.dom;
+        const parentNode = referenceNode.parentNode;
+        parentNode.insertBefore(newNode, referenceNode);
         break;
       }
       case 'Remove': {
@@ -30,14 +32,15 @@ function applyPatches(patches) {
   });
 }
 
-function createElemFromVnode(vnode) {
+function createNode(vnode) {
   if (vnode.tagName === 'TEXT') {
     return document.createTextNode(vnode.text);
   } else {
     const elem = document.createElement(vnode.tagName);
-    vnode.props.forEach(prop => {
-      elem[prop.key] = prop.value;
-    });
+    const props = vnode.props;
+    for (key in props) {
+      elem[key] = props[key];
+    }
     if (vnode.children) {
       vnode.children.forEach(childVnode => appendVnode(elem, childVnode));
     }
@@ -46,6 +49,6 @@ function createElemFromVnode(vnode) {
 }
 
 function appendVnode(parentDom, vnode) {
-  const newDomNode = createElemFromVnode(vnode);
+  const newDomNode = createNode(vnode);
   parentDom.appendChild(newDomNode);
 }

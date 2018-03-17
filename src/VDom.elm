@@ -35,12 +35,38 @@ type alias DomRef =
     JD.Value
 
 
-childNodes : DomRef -> List DomRef
-childNodes domRef =
-    JD.decodeValue
-        (JD.field "childNodes" (JD.list JD.value))
-        domRef
-        |> Result.withDefault []
+{-| Get children of a real DOM node as an Elm List
+-}
+domChildNodes : DomRef -> List DomRef
+domChildNodes parentNode =
+    let
+        -- Can't use JD.list because Node.childNodes is not strictly an instance of Array
+        -- Instead have to do it recursively with firstChild and nextSibling
+        firstChild =
+            JD.decodeValue
+                (JD.field "firstChild" JD.value)
+                parentNode
+                |> Result.withDefault (Debug.crash "Failed to decode JS to JS!")
+    in
+        if firstChild == JE.null then
+            []
+        else
+            domChildNodesHelp firstChild [ firstChild ]
+
+
+domChildNodesHelp : JD.Value -> List JD.Value -> List JD.Value
+domChildNodesHelp prevNode reverseNodes =
+    let
+        nextSibling =
+            JD.decodeValue
+                (JD.field "nextSibling" JD.value)
+                prevNode
+                |> Result.withDefault (Debug.crash "Failed to decode JS to JS!")
+    in
+        if nextSibling == JE.null then
+            List.reverse reverseNodes
+        else
+            domChildNodesHelp nextSibling (nextSibling :: reverseNodes)
 
 
 encodePatches : List (Patch msg) -> JD.Value
@@ -103,13 +129,13 @@ encodeProps props =
             props
 
 
-diff : DomRef -> Vnode msg -> Vnode msg -> List (Patch msg)
-diff containerDom old new =
+diff : DomRef -> List (Vnode msg) -> Vnode msg -> List (Patch msg)
+diff containerDom oldList new =
     List.reverse <|
         diffChildren
             containerDom
-            (childNodes containerDom)
-            [ old ]
+            (domChildNodes containerDom)
+            oldList
             [ new ]
             []
 
@@ -133,7 +159,7 @@ diffNode dom old new revPatches =
                 in
                     diffChildren
                         dom
-                        (childNodes dom)
+                        (domChildNodes dom)
                         oldRec.children
                         newRec.children
                         revPatchesWithProps

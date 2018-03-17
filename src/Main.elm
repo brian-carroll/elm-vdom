@@ -33,7 +33,7 @@ main =
 init : DomRef -> ( Model, Cmd Msg )
 init containerRoot =
     ( { count = 0
-      , vdom = TextNode ""
+      , vdomList = []
       , containerRoot = containerRoot
       }
     , Cmd.none
@@ -49,10 +49,14 @@ update message model =
                     { model
                         | count = model.count + 1
                     }
+
+                newVdom =
+                    ViewVdom.root newModel
             in
-                ( newModel
-                , ViewVdom.root newModel
-                    |> VDom.diff model.containerRoot model.vdom
+                ( { newModel
+                    | vdomList = [ newVdom ]
+                  }
+                , VDom.diff model.containerRoot model.vdomList newVdom
                     |> VDom.encodePatches
                     |> vdomOutput
                 )
