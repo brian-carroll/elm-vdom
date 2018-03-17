@@ -77,9 +77,24 @@ root model =
         , viewImage model.count
         , ul []
             (List.range 0 model.count
-                |> List.map (\x -> li [] [ text <| toString x ])
+                |> List.map (listItem model.count)
             )
         ]
+
+
+listItem : Int -> Int -> Vnode Msg
+listItem count i =
+    let
+        x =
+            if i % 2 == 0 then
+                i
+            else
+                i + count
+    in
+        li []
+            [ text <|
+                toString x
+            ]
 
 
 viewImage : Int -> Vnode Msg

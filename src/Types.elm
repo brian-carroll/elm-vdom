@@ -5,6 +5,7 @@ import VDom exposing (Vnode, DomRef)
 
 type Msg
     = Increment
+    | Decrement
 
 
 type alias Model =

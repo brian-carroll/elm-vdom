@@ -47,22 +47,28 @@ init containerRoot =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
-    case message of
-        Increment ->
-            let
-                newModel =
-                    { model
-                        | count = model.count + 1
-                    }
+    let
+        inc =
+            case message of
+                Increment ->
+                    1
 
-                newVdom =
-                    ViewVdom.root newModel
-            in
-                ( { newModel
-                    | vdomList = [ newVdom ]
-                  }
-                , renderVdom model.containerRoot model.vdomList newVdom
-                )
+                Decrement ->
+                    -1
+
+        newModel =
+            { model
+                | count = model.count + inc
+            }
+
+        newVdom =
+            ViewVdom.root newModel
+    in
+        ( { newModel
+            | vdomList = [ newVdom ]
+          }
+        , renderVdom model.containerRoot model.vdomList newVdom
+        )
 
 
 renderVdom : DomRef -> List (Vnode msg) -> Vnode msg -> Cmd msg

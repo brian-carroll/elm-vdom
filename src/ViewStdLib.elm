@@ -22,6 +22,10 @@ root model =
         , button
             [ onClick Increment ]
             [ text "+1" ]
+        , br [] []
+        , button
+            [ onClick Decrement ]
+            [ text "-1" ]
         ]
 
 
