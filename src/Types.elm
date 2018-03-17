@@ -4,7 +4,8 @@ import VDom exposing (Vnode, DomRef)
 
 
 type Msg
-    = Increment
+    = Init
+    | Increment
     | Decrement
 
 

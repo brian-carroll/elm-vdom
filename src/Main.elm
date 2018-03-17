@@ -35,13 +35,13 @@ init : DomRef -> ( Model, Cmd Msg )
 init containerRoot =
     let
         initModel =
-            { count = -1
+            { count = 0
             , vdomList = []
             , containerRoot = containerRoot
             }
     in
         ( initModel
-        , Task.perform (\_ -> Increment) (Task.succeed ())
+        , Task.perform (\() -> Init) (Task.succeed ())
         )
 
 
@@ -50,6 +50,9 @@ update message model =
     let
         inc =
             case message of
+                Init ->
+                    0
+
                 Increment ->
                     1
 
@@ -65,7 +68,7 @@ update message model =
             ViewVdom.root newModel
     in
         ( { newModel
-            | vdomList = [ newVdom ]
+            | vdomList = List.singleton newVdom
           }
         , renderVdom model.containerRoot model.vdomList newVdom
         )
