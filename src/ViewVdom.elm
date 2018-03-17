@@ -44,6 +44,14 @@ img =
     node "img"
 
 
+ul =
+    node "ul"
+
+
+li =
+    node "li"
+
+
 src : String -> Property msg
 src url =
     Prop "src" (JE.string url)
@@ -66,14 +74,31 @@ root model =
             [ text "my vdom" ]
         , p []
             [ text ("Count: " ++ toString model.count) ]
-        , img
-            [ src (selectImage model.count)
-            , height 100
-            ]
-            []
+        , viewImage model.count
+        , ul []
+            (List.range 0 model.count
+                |> List.map (\x -> li [] [ text <| toString x ])
+            )
         ]
 
 
-selectImage : Int -> String
-selectImage i =
-    "./assets/img" ++ (toString (i % 2)) ++ ".jpg"
+viewImage : Int -> Vnode Msg
+viewImage i =
+    let
+        odd =
+            (i % 2)
+
+        url =
+            "./assets/img" ++ (toString odd) ++ ".jpg"
+
+        props =
+            if odd == 0 then
+                [ src url
+                , height 100
+                ]
+            else
+                [ height 100
+                , src url
+                ]
+    in
+        img props []
