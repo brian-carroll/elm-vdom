@@ -10,6 +10,7 @@ port module Main exposing (..)
 -}
 
 import Html
+import Task
 import Types exposing (..)
 import ViewStdLib
 import ViewVdom
@@ -32,12 +33,16 @@ main =
 
 init : DomRef -> ( Model, Cmd Msg )
 init containerRoot =
-    ( { count = 0
-      , vdomList = []
-      , containerRoot = containerRoot
-      }
-    , Cmd.none
-    )
+    let
+        initModel =
+            { count = -1
+            , vdomList = []
+            , containerRoot = containerRoot
+            }
+    in
+        ( initModel
+        , Task.perform (\_ -> Increment) (Task.succeed ())
+        )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -56,7 +61,12 @@ update message model =
                 ( { newModel
                     | vdomList = [ newVdom ]
                   }
-                , VDom.diff model.containerRoot model.vdomList newVdom
-                    |> VDom.encodePatches
-                    |> vdomOutput
+                , renderVdom model.containerRoot model.vdomList newVdom
                 )
+
+
+renderVdom : DomRef -> List (Vnode msg) -> Vnode msg -> Cmd msg
+renderVdom containerRoot oldList new =
+    VDom.diff containerRoot oldList new
+        |> VDom.encodePatches
+        |> vdomOutput

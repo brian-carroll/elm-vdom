@@ -42,31 +42,39 @@ domChildNodes parentNode =
     let
         -- Can't use JD.list because Node.childNodes is not strictly an instance of Array
         -- Instead have to do it recursively with firstChild and nextSibling
-        firstChild =
+        firstChildResult =
             JD.decodeValue
                 (JD.field "firstChild" JD.value)
                 parentNode
-                |> Result.withDefault (Debug.crash "Failed to decode JS to JS!")
     in
-        if firstChild == JE.null then
-            []
-        else
-            domChildNodesHelp firstChild [ firstChild ]
+        case firstChildResult of
+            Err _ ->
+                []
+
+            Ok firstChild ->
+                if (firstChild == JE.null) then
+                    []
+                else
+                    domChildNodesHelp firstChild [ firstChild ]
 
 
 domChildNodesHelp : JD.Value -> List JD.Value -> List JD.Value
 domChildNodesHelp prevNode reverseNodes =
     let
-        nextSibling =
+        nextSiblingResult =
             JD.decodeValue
                 (JD.field "nextSibling" JD.value)
                 prevNode
-                |> Result.withDefault (Debug.crash "Failed to decode JS to JS!")
     in
-        if nextSibling == JE.null then
-            List.reverse reverseNodes
-        else
-            domChildNodesHelp nextSibling (nextSibling :: reverseNodes)
+        case nextSiblingResult of
+            Err _ ->
+                []
+
+            Ok nextSibling ->
+                if nextSibling == JE.null then
+                    List.reverse reverseNodes
+                else
+                    domChildNodesHelp nextSibling (nextSibling :: reverseNodes)
 
 
 encodePatches : List (Patch msg) -> JD.Value
@@ -200,10 +208,8 @@ diffChildren parentDom domKids oldKids newKids revPatches =
         _ ->
             Debug.crash <|
                 "Virtual DOM doesn't match real DOM:\n"
-                    ++ "real:\n"
-                    ++ toString domKids
-                    ++ "virtual:\n"
-                    ++ toString oldKids
+                    -- Can't print real DOM as it is recursive
+                    ++ (toString oldKids)
 
 
 diffProps : DomRef -> List (Property msg) -> List (Property msg) -> List (Patch msg) -> List (Patch msg)
