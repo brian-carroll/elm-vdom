@@ -5,6 +5,7 @@ const elmApp = Elm.Main.embed(elmLangContainer, vdomContainer);
 elmApp.ports.vdomOutput.subscribe(applyPatches);
 
 function applyPatches(patches) {
+  console.log('_____________________________________________');
   patches.forEach(patch => {
     console.log(patch);
     switch (patch.type) {
@@ -25,6 +26,10 @@ function applyPatches(patches) {
       }
       case 'SetProp': {
         patch.dom[patch.key] = patch.value;
+        break;
+      }
+      case 'RemoveAttr': {
+        patch.dom.removeAttribute(patch.key);
         break;
       }
       default:

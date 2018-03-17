@@ -113,6 +113,7 @@ viewImage i =
                 ]
             else
                 [ height 100
+                , width 133
                 , src url
                 ]
     in

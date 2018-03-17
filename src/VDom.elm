@@ -29,6 +29,7 @@ type Patch msg
     | InsertBefore DomRef (Vnode msg)
     | Remove DomRef
     | SetProp DomRef (Property msg)
+    | RemoveAttr DomRef String
 
 
 type alias DomRef =
@@ -109,6 +110,12 @@ encodePatch patch =
                 , ( "dom", domRef )
                 , ( "key", JE.string key )
                 , ( "value", value )
+                ]
+
+            RemoveAttr domRef key ->
+                [ ( "type", JE.string "RemoveAttr" )
+                , ( "dom", domRef )
+                , ( "key", JE.string key )
                 ]
 
 
@@ -225,7 +232,7 @@ diffProps dom oldProps newProps revPatches =
 
         ( (Prop key value) :: oldRest, [] ) ->
             diffProps dom oldRest [] <|
-                (SetProp dom (Prop key JE.null))
+                (RemoveAttr dom key)
                     :: revPatches
 
         ( _, ((Prop newKey newVal) as newProp) :: newRest ) ->
