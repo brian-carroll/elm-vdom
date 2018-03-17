@@ -26,7 +26,7 @@ type Property msg
 
 type Patch msg
     = AppendChild DomRef (Vnode msg)
-    | InsertBefore DomRef (Vnode msg)
+    | Replace DomRef (Vnode msg)
     | Remove DomRef
     | SetProp DomRef (Property msg)
     | RemoveAttr DomRef String
@@ -94,8 +94,8 @@ encodePatch patch =
                 , ( "vnode", encodeVnode vnode )
                 ]
 
-            InsertBefore domRef vnode ->
-                [ ( "type", JE.string "InsertBefore" )
+            Replace domRef vnode ->
+                [ ( "type", JE.string "Replace" )
                 , ( "dom", domRef )
                 , ( "vnode", encodeVnode vnode )
                 ]
@@ -162,11 +162,11 @@ diffNode dom old new revPatches =
             if oldStr == newStr then
                 revPatches
             else
-                replace dom new revPatches
+                (Replace dom new) :: revPatches
 
         ( Element oldRec, Element newRec ) ->
             if oldRec.tagName /= newRec.tagName then
-                replace dom new revPatches
+                (Replace dom new) :: revPatches
             else
                 let
                     revPatchesWithProps =
@@ -180,43 +180,37 @@ diffNode dom old new revPatches =
                         revPatchesWithProps
 
         _ ->
-            replace dom new revPatches
-
-
-replace : DomRef -> Vnode msg -> List (Patch msg) -> List (Patch msg)
-replace dom new revPatches =
-    (Remove dom)
-        :: (InsertBefore dom new)
-        :: revPatches
+            (Replace dom new) :: revPatches
 
 
 diffChildren : DomRef -> List DomRef -> List (Vnode msg) -> List (Vnode msg) -> List (Patch msg) -> List (Patch msg)
 diffChildren parentDom domKids oldKids newKids revPatches =
-    case ( domKids, oldKids, newKids ) of
-        ( [], [], [] ) ->
+    case ( oldKids, newKids ) of
+        ( [], [] ) ->
             revPatches
 
-        ( [], [], _ ) ->
+        ( [], _ ) ->
             List.foldl
-                (\newKid acc -> (AppendChild parentDom newKid) :: acc)
+                (\newKid accPatches -> (AppendChild parentDom newKid) :: accPatches)
                 revPatches
                 newKids
 
-        ( _, _, [] ) ->
+        ( _, [] ) ->
             List.foldl
-                (\domKid acc -> (Remove domKid) :: acc)
+                (\domKid accPatches -> (Remove domKid) :: accPatches)
                 revPatches
                 domKids
 
-        ( dom :: domRest, old :: oldRest, new :: newRest ) ->
-            diffChildren parentDom domRest oldRest newRest <|
-                (diffNode dom old new revPatches)
+        ( old :: oldRest, new :: newRest ) ->
+            case domKids of
+                dom :: domRest ->
+                    diffChildren parentDom domRest oldRest newRest <|
+                        (diffNode dom old new revPatches)
 
-        _ ->
-            Debug.crash <|
-                "Virtual DOM doesn't match real DOM:\n"
-                    -- Can't print real DOM as it is recursive
-                    ++ (toString oldKids)
+                [] ->
+                    Debug.crash <|
+                        "Virtual DOM node doesn't have a matching real DOM node:\n"
+                            ++ (toString old)
 
 
 diffProps : DomRef -> List (Property msg) -> List (Property msg) -> List (Patch msg) -> List (Patch msg)

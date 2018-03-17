@@ -13,11 +13,11 @@ function applyPatches(patches) {
         appendVnode(patch.parentDom, patch.vnode);
         break;
       }
-      case 'InsertBefore': {
+      case 'Replace': {
         const newNode = createNode(patch.vnode);
         const referenceNode = patch.dom;
         const parentNode = referenceNode.parentNode;
-        parentNode.insertBefore(newNode, referenceNode);
+        parentNode.replaceChild(newNode, referenceNode);
         break;
       }
       case 'Remove': {
