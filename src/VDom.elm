@@ -13,7 +13,7 @@ type Vnode msg
     = Element
         { tagName : String
         , props : List (Property msg)
-        , children : List (Vnode msg)
+        , childNodes : List (Vnode msg)
         }
     | TextNode String
 
@@ -104,11 +104,11 @@ encodeVnode vnode =
                 , ( "text", JE.string str )
                 ]
 
-        Element { tagName, props, children } ->
+        Element { tagName, props, childNodes } ->
             JE.object
                 [ ( "tagName", JE.string tagName )
                 , ( "props", encodeProps props )
-                , ( "children", JE.list (List.map encodeVnode children) )
+                , ( "childNodes", JE.list (List.map encodeVnode childNodes) )
                 ]
 
 
@@ -165,8 +165,8 @@ diffNode old new =
                             }
                 in
                     diffChildren 0
-                        oldRec.children
-                        newRec.children
+                        oldRec.childNodes
+                        newRec.childNodes
                         patchTreeWithProps
 
         _ ->

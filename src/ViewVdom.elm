@@ -6,11 +6,11 @@ import Json.Encode as JE
 
 
 node : String -> List (Property msg) -> List (Vnode msg) -> Vnode msg
-node tagName props children =
+node tagName props childNodes =
     Element
         { tagName = tagName
         , props = props
-        , children = children
+        , childNodes = childNodes
         }
 
 

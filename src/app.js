@@ -5,14 +5,16 @@ const elmApp = Elm.Main.embed(elmLangContainer);
 elmApp.ports.vdomOutput.subscribe(traverse(vdomContainer));
 
 function traverse(domNode) {
+  console.log('_____________________________________________\n');
+  console.log('traverse', domNode);
   return function applyPatchTree(patchTree) {
-    console.log('patch tree: ', patchTree);
+    console.log('applyPatchTree', patchTree);
     const { patches, recurse } = patchTree;
 
     applyPatches(domNode, patches);
 
     for (const idx in recurse) {
-      const childDom = domNode.children[idx];
+      const childDom = domNode.childNodes[idx];
       const childPatchTree = recurse[idx];
       traverse(childDom)(childPatchTree);
     }
@@ -20,8 +22,7 @@ function traverse(domNode) {
 }
 
 function applyPatches(dom, patches) {
-  console.log('_____________________________________________');
-  console.log('Applying patches to DOM node: ', dom);
+  console.log('applyPatches', dom);
   patches.forEach(patch => {
     console.log(patch);
     switch (patch.type) {
@@ -35,7 +36,7 @@ function applyPatches(dom, patches) {
         break;
       }
       case 'RemoveChildren': {
-        const kids = dom.children;
+        const kids = dom.childNodes;
         for (let i = 0; i < patch.number; i++) {
           kids[kids.length - 1].remove();
         }
@@ -64,8 +65,8 @@ function createNode(vnode) {
     for (key in props) {
       elem[key] = props[key];
     }
-    if (vnode.children) {
-      vnode.children.forEach(childVnode => appendVnode(elem, childVnode));
+    if (vnode.childNodes) {
+      vnode.childNodes.forEach(childVnode => appendVnode(elem, childVnode));
     }
     return elem;
   }
