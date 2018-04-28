@@ -14,16 +14,16 @@ import Task
 import Types exposing (..)
 import ViewStdLib
 import ViewVdom
-import VDom exposing (Vnode(..), DomRef)
+import VDom exposing (Vnode(..))
 import Json.Decode as JD
 
 
 port vdomOutput : JD.Value -> Cmd msg
 
 
-main : Program DomRef Model Msg
+main : Program Never Model Msg
 main =
-    Html.programWithFlags
+    Html.program
         { init = init
         , update = update
         , subscriptions = (\_ -> Sub.none)
@@ -31,13 +31,12 @@ main =
         }
 
 
-init : DomRef -> ( Model, Cmd Msg )
-init containerRoot =
+init : ( Model, Cmd Msg )
+init =
     let
         initModel =
             { count = 0
-            , vdomList = []
-            , containerRoot = containerRoot
+            , vdom = Nothing
             }
     in
         ( initModel
@@ -68,14 +67,13 @@ update message model =
             ViewVdom.root newModel
     in
         ( { newModel
-            | vdomList = List.singleton newVdom
+            | vdom = Just newVdom
           }
-        , renderVdom model.containerRoot model.vdomList newVdom
+        , renderVdom model.vdom newVdom
         )
 
 
-renderVdom : DomRef -> List (Vnode msg) -> Vnode msg -> Cmd msg
-renderVdom containerRoot oldList new =
-    VDom.diff containerRoot oldList new
-        |> VDom.encodePatches
+renderVdom : Maybe (Vnode msg) -> Vnode msg -> Cmd msg
+renderVdom old new =
+    VDom.diff old new
         |> vdomOutput

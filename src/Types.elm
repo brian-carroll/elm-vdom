@@ -1,6 +1,6 @@
 module Types exposing (..)
 
-import VDom exposing (Vnode, DomRef)
+import VDom exposing (Vnode)
 
 
 type Msg
@@ -11,6 +11,5 @@ type Msg
 
 type alias Model =
     { count : Int
-    , vdomList : List (Vnode Msg)
-    , containerRoot : DomRef
+    , vdom : Maybe (Vnode Msg)
     }

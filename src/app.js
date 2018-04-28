@@ -1,35 +1,52 @@
 const elmLangContainer = document.getElementById('elm-lang-vdom');
 const vdomContainer = document.getElementById('brian-vdom');
 
-const elmApp = Elm.Main.embed(elmLangContainer, vdomContainer);
-elmApp.ports.vdomOutput.subscribe(applyPatches);
+const elmApp = Elm.Main.embed(elmLangContainer);
+elmApp.ports.vdomOutput.subscribe(traverse(vdomContainer));
 
-function applyPatches(patches) {
+function traverse(domNode) {
+  return function applyPatchTree(patchTree) {
+    console.log('patch tree: ', patchTree);
+    const { patches, recurse } = patchTree;
+
+    applyPatches(domNode, patches);
+
+    for (const idx in recurse) {
+      const childDom = domNode.children[idx];
+      const childPatchTree = recurse[idx];
+      traverse(childDom)(childPatchTree);
+    }
+  };
+}
+
+function applyPatches(dom, patches) {
   console.log('_____________________________________________');
+  console.log('Applying patches to DOM node: ', dom);
   patches.forEach(patch => {
     console.log(patch);
     switch (patch.type) {
       case 'AppendChild': {
-        appendVnode(patch.parentDom, patch.vnode);
+        appendVnode(dom, patch.vnode);
         break;
       }
       case 'Replace': {
         const newNode = createNode(patch.vnode);
-        const referenceNode = patch.dom;
-        const parentNode = referenceNode.parentNode;
-        parentNode.replaceChild(newNode, referenceNode);
+        dom.parentNode.replaceChild(newNode, dom);
         break;
       }
-      case 'Remove': {
-        patch.dom.remove();
+      case 'RemoveChildren': {
+        const kids = dom.children;
+        for (let i = 0; i < patch.number; i++) {
+          kids[kids.length - 1].remove();
+        }
         break;
       }
       case 'SetProp': {
-        patch.dom[patch.key] = patch.value;
+        dom[patch.key] = patch.value;
         break;
       }
       case 'RemoveAttr': {
-        patch.dom.removeAttribute(patch.key);
+        dom.removeAttribute(patch.key);
         break;
       }
       default:

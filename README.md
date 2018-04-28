@@ -32,12 +32,13 @@ Alternative algorithms
 ----------------------
 
 ### Output patches in a tree rather than a list
-- Traverse this tree in JS, applying the patches as you go
+- Traverse the patch tree in JS, applying the patches as you go
 - No need for any JS references in Elm
 - Tree may contain some empty 'parent patches', which don't do anything except contain 'child patches'
 - Should be possible to prune empty branches from the patch tree, on the way back up the recursion stack
 - Maybe patches can use a child index to skip irrelevant child nodes (tricky if adding/removing)
 - Can we encode the patch tree to JSON as we do the recursion in the diff algorithm?
+
 
 ### Combine the HTML and vdom libraries into one?
 - Maybe there are too many traversals going on

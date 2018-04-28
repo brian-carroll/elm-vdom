@@ -2,9 +2,7 @@ module VDom
     exposing
         ( Vnode(..)
         , Property(..)
-        , DomRef
         , diff
-        , encodePatches
         )
 
 import Json.Decode as JD
@@ -25,96 +23,74 @@ type Property msg
 
 
 type Patch msg
-    = AppendChild DomRef (Vnode msg)
-    | Replace DomRef (Vnode msg)
-    | Remove DomRef
-    | SetProp DomRef (Property msg)
-    | RemoveAttr DomRef String
+    = AppendChild (Vnode msg)
+    | Replace (Vnode msg)
+    | RemoveChildren Int
+    | SetProp (Property msg)
+    | RemoveAttr String
 
 
-type alias DomRef =
-    JD.Value
+type PatchTree msg
+    = PatchTree
+        { patches : List (Patch msg)
+        , recurse : List ( Int, PatchTree msg )
+        }
 
 
-{-| Get children of a real DOM node as an Elm List
--}
-domChildNodes : DomRef -> List DomRef
-domChildNodes parentNode =
-    let
-        -- Can't use JD.list because Node.childNodes is not strictly an instance of Array
-        -- Instead have to do it recursively with firstChild and nextSibling
-        firstChildResult =
-            JD.decodeValue
-                (JD.field "firstChild" JD.value)
-                parentNode
-    in
-        case firstChildResult of
-            Err _ ->
-                []
-
-            Ok firstChild ->
-                if (firstChild == JE.null) then
-                    []
-                else
-                    domChildNodesHelp firstChild [ firstChild ]
+emptyPatchTree : PatchTree msg
+emptyPatchTree =
+    PatchTree
+        { patches = []
+        , recurse = []
+        }
 
 
-domChildNodesHelp : JD.Value -> List JD.Value -> List JD.Value
-domChildNodesHelp prevNode reverseNodes =
-    let
-        nextSiblingResult =
-            JD.decodeValue
-                (JD.field "nextSibling" JD.value)
-                prevNode
-    in
-        case nextSiblingResult of
-            Err _ ->
-                []
-
-            Ok nextSibling ->
-                if nextSibling == JE.null then
-                    List.reverse reverseNodes
-                else
-                    domChildNodesHelp nextSibling (nextSibling :: reverseNodes)
-
-
-encodePatches : List (Patch msg) -> JD.Value
-encodePatches patches =
-    JE.list <|
-        List.map encodePatch patches
+encodePatchTree : PatchTree msg -> JE.Value
+encodePatchTree (PatchTree tree) =
+    Debug.log "Elm patch tree" <|
+        JE.object
+            [ ( "patches"
+              , JE.list <|
+                    List.map encodePatch tree.patches
+              )
+            , ( "recurse"
+              , JE.object <|
+                    List.map
+                        (\( idx, childTree ) ->
+                            ( toString idx, encodePatchTree childTree )
+                        )
+                        tree.recurse
+              )
+            ]
 
 
 encodePatch : Patch msg -> JD.Value
 encodePatch patch =
     JE.object <|
         case patch of
-            AppendChild parentDom vnode ->
+            AppendChild vnode ->
                 [ ( "type", JE.string "AppendChild" )
-                , ( "parentDom", parentDom )
                 , ( "vnode", encodeVnode vnode )
                 ]
 
-            Replace domRef vnode ->
+            Replace vnode ->
                 [ ( "type", JE.string "Replace" )
-                , ( "dom", domRef )
                 , ( "vnode", encodeVnode vnode )
                 ]
 
-            Remove domRef ->
-                [ ( "type", JE.string "Remove" )
-                , ( "dom", domRef )
+            RemoveChildren number ->
+                [ ( "type", JE.string "RemoveChildren" )
+                , ( "number", JE.int number )
                 ]
 
-            SetProp domRef (Prop key value) ->
+            SetProp (Prop key value) ->
                 [ ( "type", JE.string "SetProp" )
-                , ( "dom", domRef )
                 , ( "key", JE.string key )
                 , ( "value", value )
                 ]
 
-            RemoveAttr domRef key ->
+            RemoveAttr key ->
                 [ ( "type", JE.string "RemoveAttr" )
-                , ( "dom", domRef )
                 , ( "key", JE.string key )
                 ]
 
@@ -144,89 +120,120 @@ encodeProps props =
             props
 
 
-diff : DomRef -> List (Vnode msg) -> Vnode msg -> List (Patch msg)
-diff containerDom oldList new =
-    List.reverse <|
-        diffChildren
-            containerDom
-            (domChildNodes containerDom)
-            oldList
-            [ new ]
-            []
+diff : Maybe (Vnode msg) -> Vnode msg -> JE.Value
+diff old new =
+    let
+        oldList =
+            case old of
+                Nothing ->
+                    []
+
+                Just x ->
+                    [ x ]
+    in
+        encodePatchTree <|
+            diffChildren 0
+                oldList
+                [ new ]
+                emptyPatchTree
 
 
-diffNode : DomRef -> Vnode msg -> Vnode msg -> List (Patch msg) -> List (Patch msg)
-diffNode dom old new revPatches =
+diffNode : Vnode msg -> Vnode msg -> PatchTree msg
+diffNode old new =
     case ( old, new ) of
         ( TextNode oldStr, TextNode newStr ) ->
             if oldStr == newStr then
-                revPatches
+                emptyPatchTree
             else
-                (Replace dom new) :: revPatches
+                PatchTree
+                    { patches = [ Replace new ]
+                    , recurse = []
+                    }
 
         ( Element oldRec, Element newRec ) ->
             if oldRec.tagName /= newRec.tagName then
-                (Replace dom new) :: revPatches
+                PatchTree
+                    { patches = [ Replace new ]
+                    , recurse = []
+                    }
             else
                 let
-                    revPatchesWithProps =
-                        diffProps dom oldRec.props newRec.props revPatches
+                    patchTreeWithProps =
+                        PatchTree
+                            { patches = diffProps oldRec.props newRec.props []
+                            , recurse = []
+                            }
                 in
-                    diffChildren
-                        dom
-                        (domChildNodes dom)
+                    diffChildren 0
                         oldRec.children
                         newRec.children
-                        revPatchesWithProps
+                        patchTreeWithProps
 
         _ ->
-            (Replace dom new) :: revPatches
+            PatchTree
+                { patches = [ Replace new ]
+                , recurse = []
+                }
 
 
-diffChildren : DomRef -> List DomRef -> List (Vnode msg) -> List (Vnode msg) -> List (Patch msg) -> List (Patch msg)
-diffChildren parentDom domKids oldKids newKids revPatches =
-    case ( oldKids, newKids ) of
-        ( [], [] ) ->
-            revPatches
+diffChildren : Int -> List (Vnode msg) -> List (Vnode msg) -> PatchTree msg -> PatchTree msg
+diffChildren idx oldKids newKids ((PatchTree tree) as pt) =
+    case oldKids of
+        [] ->
+            PatchTree
+                { tree
+                    | patches =
+                        List.foldr
+                            (\newKid acc -> AppendChild newKid :: acc)
+                            tree.patches
+                            newKids
+                }
 
-        ( [], _ ) ->
-            List.foldl
-                (\newKid accPatches -> (AppendChild parentDom newKid) :: accPatches)
-                revPatches
-                newKids
-
-        ( _, [] ) ->
-            List.foldl
-                (\domKid accPatches -> (Remove domKid) :: accPatches)
-                revPatches
-                domKids
-
-        ( old :: oldRest, new :: newRest ) ->
-            case domKids of
-                dom :: domRest ->
-                    diffChildren parentDom domRest oldRest newRest <|
-                        (diffNode dom old new revPatches)
-
+        old :: oldRest ->
+            case newKids of
                 [] ->
-                    Debug.crash <|
-                        "Virtual DOM node doesn't have a matching real DOM node:\n"
-                            ++ (toString old)
+                    PatchTree
+                        { tree
+                            | patches =
+                                RemoveChildren (List.length oldKids)
+                                    :: tree.patches
+                        }
+
+                new :: newRest ->
+                    let
+                        childPatchTree =
+                            diffNode old new
+
+                        accPatchTree =
+                            if childPatchTree == emptyPatchTree then
+                                pt
+                            else
+                                PatchTree
+                                    { tree
+                                        | recurse =
+                                            ( idx
+                                            , childPatchTree
+                                            )
+                                                :: tree.recurse
+                                    }
+                    in
+                        diffChildren (idx + 1) oldRest newRest accPatchTree
 
 
-diffProps : DomRef -> List (Property msg) -> List (Property msg) -> List (Patch msg) -> List (Patch msg)
-diffProps dom oldProps newProps revPatches =
+diffProps : List (Property msg) -> List (Property msg) -> List (Patch msg) -> List (Patch msg)
+diffProps oldProps newProps revPatches =
     case ( oldProps, newProps ) of
         ( [], [] ) ->
             revPatches
 
         ( [], new :: newRest ) ->
-            diffProps dom [] newRest <|
-                (SetProp dom new)
+            diffProps [] newRest <|
+                (SetProp new)
                     :: revPatches
 
         ( (Prop key value) :: oldRest, [] ) ->
-            diffProps dom oldRest [] <|
-                (RemoveAttr dom key)
+            diffProps oldRest [] <|
+                (RemoveAttr key)
                     :: revPatches
 
         ( _, ((Prop newKey newVal) as newProp) :: newRest ) ->
@@ -235,10 +242,10 @@ diffProps dom oldProps newProps revPatches =
                     extractFirstMatchingProp newKey oldProps
             in
                 if mOldVal == Just newVal then
-                    diffProps dom oldRest newRest revPatches
+                    diffProps oldRest newRest revPatches
                 else
-                    diffProps dom oldRest newRest <|
-                        (SetProp dom newProp)
+                    diffProps oldRest newRest <|
+                        (SetProp newProp)
                             :: revPatches
 
 
@@ -259,15 +266,3 @@ extractFirstMatchingProp key pairs =
                         extractFirstMatchingProp key rest
                 in
                     ( found, (Prop k v) :: leftovers )
-
-
-
-{-
-   Event handlers:
-       Can't pass function through Port, need to create handler on JS side
-       Function on JS side needs to tag the event and send it through with the payload
-       Then decode that event on the other side
-       Basically building a synthetic event system
-       Taggers couldn't be curried functions, just strings
-
--}
