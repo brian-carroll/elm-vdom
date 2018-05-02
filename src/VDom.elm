@@ -25,7 +25,7 @@ type Property msg
 type Patch msg
     = AppendChild (Vnode msg)
     | Replace (Vnode msg)
-    | RemoveChildren Int
+    | RemoveLast Int
     | SetProp (Property msg)
     | RemoveAttr String
 
@@ -78,8 +78,8 @@ encodePatch patch =
                 , ( "vnode", encodeVnode vnode )
                 ]
 
-            RemoveChildren number ->
-                [ ( "type", JE.string "RemoveChildren" )
+            RemoveLast number ->
+                [ ( "type", JE.string "RemoveLast" )
                 , ( "number", JE.int number )
                 ]
 
@@ -195,7 +195,7 @@ diffChildren idx oldKids newKids ((PatchTree tree) as pt) =
                     PatchTree
                         { tree
                             | patches =
-                                RemoveChildren (List.length oldKids)
+                                RemoveLast (List.length oldKids)
                                     :: tree.patches
                         }
 

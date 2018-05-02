@@ -11,49 +11,29 @@ Algorithm
 ### Description
 - Use separate HTML and vdom 'libraries', as in Elm std lib
 - HTML library produces a virtual DOM tree
-- Vdom diff keeps track of 3 trees
-    - old vdom
-    - new vdom
-    - real DOM
-- Old vdom and real DOM are assumed to be similar
-- Using old vdom for traversal makes for easier code than traversing real DOM directly, but we use real DOM references so that we know where to apply the patches.
-- Outputs a list of patches (containing real DOM references)
-
-### Comments
-- Need 3 trees
-    - Can't have real DOM references inside of the 'old vdom' tree
-    - Because at the time we are creating new vdom nodes, we have not yet created the corresponding real DOM nodes
-- Traversing the real DOM requires some dirty tricks with `Json.Decode` to track JS object references in Elm.
-- Later I want to do another project to compile this to Wasm, which wouldn't be able to traverse the DOM like this.
+- vdom produces a _tree_ of patches (rather than a list)
+- JS traverses the patch tree, applying patches
+- No JS references at all on Elm side
+    - all done through ports
+- Slightly more traversing required compared to an array. But you don't have to convert a list to an array either
 
 
+Events
+------
+- Need `onClick` and friends
+- Modify stdlib implementation
+    - New datatype `Facts` to cover attributes, properties, events and styles
+- Modify `applyEvents` from stdlib VirtualDom.js
+- Decoders? I think they're plain values with no functions in them. Could maybe pass them through ports but not sure.
+- May have to put handler functions in the Model state
+- Could impose restriction for handlers to always handle one input value, which could be `undefined`. Then it breaks if you don't use `success`, which is good.
 
-Alternative algorithms
-----------------------
-
-### Output patches in a tree rather than a list
-- Traverse the patch tree in JS, applying the patches as you go
-- No need for any JS references in Elm
-- Tree may contain some empty 'parent patches', which don't do anything except contain 'child patches'
-- Should be possible to prune empty branches from the patch tree, on the way back up the recursion stack
-- Maybe patches can use a child index to skip irrelevant child nodes (tricky if adding/removing)
-- Can we encode the patch tree to JSON as we do the recursion in the diff algorithm?
-
-
-### Combine the HTML and vdom libraries into one?
-- Maybe there are too many traversals going on
-    1. 'Traversal' of the view functions to build a vdom tree
-    2. Traverse the vdom trees to create patches
-    3. Traverse the patches in JS to apply them (smaller tree though)
-- Maybe we could reduce this down to 2
-    1. View function produces a set of patches directly
-    2. JS traverses the patches
-- The HTML lib would have to be monadic, I think, because it is has a 'hidden' state - the previous tree. Would that make the API nasty?
-- This is probably trying to solve a problem that doesn't exist, since the tree of patches is not really much different from a list/array of patches.
-```elm
-    div [ attr1 "stuff" ]
-        [ p [] [ text "things" ]
-        ]
-```
-- I don't think this idea will work with anything like the current API
-- Problem is that the first 'traversal', which I put in quotes, is done by the _runtime_, not by my code!
+- Handler function
+    - Elm `on : String -> Decoder msg -> Attribute msg`
+        - Decoder receives the event object
+    - JS `addEventListener(key, handler)`
+    - When the event triggers, we send an object to an Elm port
+        - Some ID to identify what function will handle it
+            - Index into a Dict
+            - List of tree indexes? That only identifies the Vdom node. But we can have many listeners per node.
+        - The event object

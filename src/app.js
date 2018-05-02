@@ -35,10 +35,10 @@ function applyPatches(dom, patches) {
         dom.parentNode.replaceChild(newNode, dom);
         break;
       }
-      case 'RemoveChildren': {
-        const kids = dom.childNodes;
-        for (let i = 0; i < patch.number; i++) {
-          kids[kids.length - 1].remove();
+      case 'RemoveLast': {
+        let i = patch.number;
+        while (i--) {
+          dom.lastChild.remove();
         }
         break;
       }
